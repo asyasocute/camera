@@ -1,0 +1,282 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Allow access in Settings." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разреши доступ в Настройках."
+          }
+        }
+      }
+    },
+    "At 80% and below, JPEG starts smoothing grain" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На 80% и ниже JPEG начинает сглаживать зерно"
+          }
+        }
+      }
+    },
+    "At 85% and below, HEIC starts smoothing grain" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На 85% и ниже HEIC начинает сглаживать зерно"
+          }
+        }
+      }
+    },
+    "Camera not found" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Камера не найдена"
+          }
+        }
+      }
+    },
+    "Camera unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Камера недоступна"
+          }
+        }
+      }
+    },
+    "clipped %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "пересвет %@"
+          }
+        }
+      }
+    },
+    "Couldn't connect the lens" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подключить объектив"
+          }
+        }
+      }
+    },
+    "Couldn't develop the DNG" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проявить DNG"
+          }
+        }
+      }
+    },
+    "Couldn't encode the photo" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось закодировать снимок"
+          }
+        }
+      }
+    },
+    "Couldn't set up photo capture" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось настроить захват фото"
+          }
+        }
+      }
+    },
+    "Development failed, saved the DNG only" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проявка не удалась, сохранён только DNG"
+          }
+        }
+      }
+    },
+    "Format" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат"
+          }
+        }
+      }
+    },
+    "Keep DNG" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять DNG"
+          }
+        }
+      }
+    },
+    "Last shot: %@, %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последний снимок: %@, %@"
+          }
+        }
+      }
+    },
+    "Location access is off. Allow it in Settings." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступ к геопозиции выключен. Разреши в Настройках."
+          }
+        }
+      }
+    },
+    "lossless" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "без потерь"
+          }
+        }
+      }
+    },
+    "No access to Photos. Allow it in Settings." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет доступа к Фото. Разреши в Настройках."
+          }
+        }
+      }
+    },
+    "No camera access" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет доступа к камере"
+          }
+        }
+      }
+    },
+    "No photos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет фото"
+          }
+        }
+      }
+    },
+    "Photos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото"
+          }
+        }
+      }
+    },
+    "Photos didn't accept the RAW pair, saved as two photos" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото не приняли RAW-пару, сохранено двумя снимками"
+          }
+        }
+      }
+    },
+    "PRORAW" : {
+
+    },
+    "Quality" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Качество"
+          }
+        }
+      }
+    },
+    "RAW isn't available on this lens" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RAW недоступен на этом объективе"
+          }
+        }
+      }
+    },
+    "RAW N/A" : {
+
+    },
+    "Save location" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять геопозицию"
+          }
+        }
+      }
+    },
+    "Saving location" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Геопозиция сохраняется"
+          }
+        }
+      }
+    },
+    "The camera isn't running" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Камера не запущена"
+          }
+        }
+      }
+    },
+    "The camera returned no data" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Камера не вернула данные"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
