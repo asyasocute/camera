@@ -29,7 +29,13 @@ final class CameraModel: ObservableObject {
     let live = LiveReadout()
     let location = LocationProvider()
     private var readout: Readout { live.value }
-    @Published private(set) var isCapturing = false
+    /// From the press until the sensor has taken the frame. The next shot can start right after, while
+    /// this one is still on its way to disk.
+    @Published private(set) var isExposing = false
+    /// Shots not on disk yet. Capped so rapid tapping can't queue up shots the camera would take late.
+    @Published private(set) var shotsInFlight = 0
+    private static let maxShotsInFlight = 2
+    private var shotNumber = 0
     @Published private(set) var developing = 0
     @Published private(set) var message: String?
     @Published private(set) var lastShot: ReviewShot?
@@ -109,6 +115,13 @@ final class CameraModel: ObservableObject {
         }
     }
 
+    @Published private(set) var flash = Flash(rawValue: UserDefaults.standard.string(forKey: Keys.flash) ?? "") ?? .off {
+        didSet {
+            UserDefaults.standard.set(flash.rawValue, forKey: Keys.flash)
+            service.setFlash(flash)
+        }
+    }
+
     var outputLabel: String {
         keepRAW ? "RAW+" + format.title : format.title
     }
@@ -118,6 +131,7 @@ final class CameraModel: ObservableObject {
         static let keepRAW = "keepRAW"
         static let quality = "quality"
         static let saveLocation = "saveLocation"
+        static let flash = "flash"
     }
 
     var backLenses: [Lens] { lenses.filter { !$0.isFront } }
@@ -139,6 +153,7 @@ final class CameraModel: ObservableObject {
             self?.show(String(localized: "Location access is off. Allow it in Settings."))
         }
         location.setEnabled(saveLocation)
+        service.setFlash(flash)
 
         lenses = await service.lenses()
         guard let main = backLenses.first(where: \.isMain) ?? lenses.first else {
@@ -198,6 +213,20 @@ final class CameraModel: ObservableObject {
         }
     }
 
+    /// Off → auto → on, the stock camera's order.
+    func cycleFlash() {
+        let previous = flash
+        flash = switch flash {
+        case .off: .auto
+        case .auto: .on
+        case .on: .off
+        }
+        UISelectionFeedbackGenerator().selectionChanged()
+        if previous == .off, manualISO || manualShutter || manualWhiteBalance {
+            show(String(localized: "With flash, the camera sets exposure and white balance itself"))
+        }
+    }
+
     func focus(at devicePoint: CGPoint) {
         guard (0...1).contains(devicePoint.x), (0...1).contains(devicePoint.y) else { return }
         manualFocus = false
@@ -205,26 +234,38 @@ final class CameraModel: ObservableObject {
         service.focus(at: devicePoint, meterExposure: exposure == .auto)
     }
 
+    var canCapture: Bool {
+        state?.raw != nil && !isExposing && shotsInFlight < Self.maxShotsInFlight
+    }
+
     func capture() {
-        guard !isCapturing, state?.raw != nil else { return }
-        isCapturing = true
+        guard canCapture else { return }
+        shotNumber += 1
+        let number = shotNumber
+        isExposing = true
+        shotsInFlight += 1
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let orientation = orientation.orientation
         let format = format
         let keepRAW = keepRAW
         let quality = quality
         let location = saveLocation ? location.usableLocation : nil
+        let exposed: @Sendable () -> Void = { [weak self] in
+            Task { @MainActor in self?.endExposure(of: number) }
+        }
 
         Task {
             let shot: CapturedRAW
             do {
-                shot = try await service.capture(rotationAngle: orientation.captureAngle, location: location)
+                shot = try await service.capture(rotationAngle: orientation.captureAngle, location: location, exposed: exposed)
             } catch {
-                isCapturing = false
+                endExposure(of: number)
+                shotsInFlight -= 1
                 show(error.localizedDescription)
                 return
             }
-            isCapturing = false
+            endExposure(of: number)
+            shotsInFlight -= 1
 
             developing += 1
             defer { developing -= 1 }
@@ -264,6 +305,11 @@ final class CameraModel: ObservableObject {
                 show(error.localizedDescription)
             }
         }
+    }
+
+    /// A late report from an earlier shot must not end the current one's exposure.
+    private func endExposure(of number: Int) {
+        if number == shotNumber { isExposing = false }
     }
 
     private func applyExposure() {

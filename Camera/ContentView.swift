@@ -62,6 +62,9 @@ struct ContentView: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
+            if model.state?.hasFlash == true, model.state?.raw != nil {
+                FlashButton(mode: model.flash, live: model.live, action: model.cycleFlash)
+            }
             // Only deviations from plain Bayer RAW are worth a label.
             switch model.state?.raw {
             case .bayer: EmptyView()
@@ -122,8 +125,8 @@ struct ContentView: View {
         .animation(.easeOut(duration: 0.2), value: focusMarker)
         .overlay {
             Color.black
-                .opacity(model.isCapturing ? 0.6 : 0)
-                .animation(.easeOut(duration: 0.15), value: model.isCapturing)
+                .opacity(model.isExposing ? 0.6 : 0)
+                .animation(.easeOut(duration: 0.15), value: model.isExposing)
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .top) {
@@ -236,17 +239,8 @@ struct ContentView: View {
     }
 
     private var shutter: some View {
-        Button(action: model.capture) {
-            ZStack {
-                Circle().stroke(.white, lineWidth: 4).frame(width: 78, height: 78)
-                Circle().fill(.white).frame(width: 66, height: 66)
-                    .scaleEffect(model.isCapturing ? 0.86 : 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(model.state?.raw == nil || model.isCapturing)
-        .opacity(model.state?.raw != nil ? 1 : 0.4)
-        .animation(.easeOut(duration: 0.1), value: model.isCapturing)
+        ShutterButton(isEnabled: model.canCapture, isBusy: model.isExposing, action: model.capture)
+            .opacity(model.state?.raw != nil ? 1 : 0.4)
     }
 }
 
@@ -285,6 +279,44 @@ private struct ThumbnailButton: View {
         .frame(width: 52, height: 52)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .contentShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// Yellow when the next photo uses the flash: in On unless the flash is off for cooling down, in Auto
+/// when the camera finds the scene dark enough.
+private struct FlashButton: View {
+    let mode: Flash
+    @ObservedObject var live: LiveReadout
+    let action: () -> Void
+
+    var body: some View {
+        let fires = live.value.flashReady && mode.fires(inFlashScene: live.value.flashScene)
+        Button(action: action) {
+            Image(systemName: symbol(fires: fires))
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(fires ? .yellow : .white)
+                .frame(minWidth: 28, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Flash"))
+        .accessibilityValue(value)
+    }
+
+    private func symbol(fires: Bool) -> String {
+        switch mode {
+        case .off: "bolt.slash"
+        case .auto: fires ? "bolt.badge.a.fill" : "bolt.badge.a"
+        case .on: "bolt.fill"
+        }
+    }
+
+    private var value: Text {
+        switch mode {
+        case .off: Text("Off")
+        case .auto: Text("Auto")
+        case .on: Text("On")
+        }
     }
 }
 

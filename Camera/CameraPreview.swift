@@ -42,7 +42,8 @@ final class PreviewView: UIView {
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
         if #available(iOS 17.2, *) {
             let interaction = AVCaptureEventInteraction { [weak self] event in
-                if event.phase == .ended { self?.onHardwareShutter?() }
+                // On press, like the on-screen shutter; waiting for the release adds the press's length.
+                if event.phase == .began { self?.onHardwareShutter?() }
             }
             addInteraction(interaction)
             captureEvents = interaction

@@ -37,6 +37,7 @@ struct LensState: Equatable, Sendable {
     let supportsManualExposure: Bool
     let supportsManualFocus: Bool
     let supportsManualWhiteBalance: Bool
+    let hasFlash: Bool
     let raw: RawKind?
 }
 
@@ -59,13 +60,28 @@ enum WhiteBalance: Equatable, Sendable {
     static let kelvinRange = 2000.0...10000.0
 }
 
+/// The camera meters flash shots itself: AVFoundation overrides custom exposure and locked white
+/// balance for them, so manual values apply only to shots without flash.
+enum Flash: String, Sendable {
+    case off, auto, on
+
+    /// Auto follows the camera's own judgement of whether the scene is dark enough.
+    func fires(inFlashScene flashScene: Bool) -> Bool {
+        self == .on || self == .auto && flashScene
+    }
+}
+
 struct Readout: Equatable, Sendable {
     var iso: Double
     var duration: Double
     var lensPosition: Double
     var temperature: Double
+    /// The camera finds the scene dark enough for the flash.
+    var flashScene: Bool
+    /// The lens has a flash and it isn't off for cooling down.
+    var flashReady: Bool
 
-    static let zero = Readout(iso: 0, duration: 0, lensPosition: 0, temperature: 0)
+    static let zero = Readout(iso: 0, duration: 0, lensPosition: 0, temperature: 0, flashScene: false, flashReady: false)
 }
 
 struct CapturedRAW: Sendable {
@@ -119,6 +135,9 @@ final class CaptureService: @unchecked Sendable {
     private let focusUpdates = Coalescer()
     private var exposureBias = 0.0
     private let biasUpdates = Coalescer()
+    private var flash = Flash.off
+    /// The pre-flash brightens the scene; metering it would leave the viewfinder dark after the shot.
+    private var flashCapturesInFlight: Set<Int64> = []
     private var meterTimer: DispatchSourceTimer?
     /// Set while a metering step is on its way to the sensor; cleared by the device's completion.
     private var meterStepDeadline: DispatchTime?
@@ -169,9 +188,15 @@ final class CaptureService: @unchecked Sendable {
                 iso: photo.iso,
                 duration: photo.duration,
                 lensPosition: Double(d.lensPosition),
-                temperature: white.temperature.isFinite ? Double(white.temperature) : 0
+                temperature: white.temperature.isFinite ? Double(white.temperature) : 0,
+                flashScene: self.photoOutput.isFlashScene,
+                flashReady: self.flashReady(d)
             )
         }
+    }
+
+    func setFlash(_ flash: Flash) {
+        queue.async { self.flash = flash }
     }
 
     func setExposure(_ exposure: Exposure) {
@@ -203,16 +228,7 @@ final class CaptureService: @unchecked Sendable {
     func setFocus(_ target: Double?) {
         queue.async {
             self.focusTarget = target
-            self.focusUpdates.schedule(on: self.queue) {
-                self.withLockedDevice { d in
-                    if let position = self.focusTarget {
-                        guard d.isLockingFocusWithCustomLensPositionSupported else { return }
-                        d.setFocusModeLocked(lensPosition: Float(position).clamped(0, 1))
-                    } else if d.focusMode != .continuousAutoFocus, d.isFocusModeSupported(.continuousAutoFocus) {
-                        d.focusMode = .continuousAutoFocus
-                    }
-                }
-            }
+            self.focusUpdates.schedule(on: self.queue) { self.applyFocus() }
         }
     }
 
@@ -232,7 +248,13 @@ final class CaptureService: @unchecked Sendable {
 
     /// Captures a single RAW frame: Bayer where available, otherwise ProRAW without multi-frame fusion.
     /// `rotationAngle` is in back-camera terms (see `OrientationTracker.Orientation.captureAngle`).
-    func capture(rotationAngle: CGFloat, location: PhotoLocation?) async throws -> CapturedRAW {
+    /// `exposed` runs on the photo output's queue as soon as the sensor has taken the frame, which is
+    /// when the next shot can start; the result follows once the DNG is on disk.
+    func capture(
+        rotationAngle: CGFloat,
+        location: PhotoLocation?,
+        exposed: @escaping @Sendable () -> Void
+    ) async throws -> CapturedRAW {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CapturedRAW, Error>) in
             queue.async {
                 guard let format = self.rawFormat else {
@@ -251,21 +273,27 @@ final class CaptureService: @unchecked Sendable {
                 if let connection = self.photoOutput.connection(with: .video) {
                     angle = connection.applyRotation(angle)
                     // Selfies are saved as others see you, like the system camera's default.
-                    if connection.isVideoMirroringSupported {
+                    if connection.isVideoMirroringSupported, connection.automaticallyAdjustsVideoMirroring || connection.isVideoMirrored {
                         connection.automaticallyAdjustsVideoMirroring = false
                         connection.isVideoMirrored = false
                     }
                 }
 
                 let id = settings.uniqueID
-                let delegate = RawCaptureDelegate(kind: format.kind, rotationAngle: angle, location: location) { result in
+                let delegate = RawCaptureDelegate(kind: format.kind, rotationAngle: angle, location: location, exposed: exposed) { result in
                     self.queue.async {
                         self.inFlight[id] = nil
+                        if self.flashCapturesInFlight.remove(id) != nil {
+                            // Give the meter a frame lit by the ambient light alone before it steps again.
+                            self.meterSettledAt = max(self.meterSettledAt, .now() + 0.2)
+                            self.restoreAfterFlash()
+                        }
                         self.updateRunning()
                     }
                     cont.resume(with: result)
                 }
                 self.inFlight[id] = delegate
+                if settings.flashMode == .on { self.flashCapturesInFlight.insert(id) }
                 self.photoOutput.capturePhoto(with: settings, delegate: delegate)
             }
         }
@@ -279,6 +307,28 @@ final class CaptureService: @unchecked Sendable {
         return angle < 0 ? angle + 360 : angle
     }
 
+    // MARK: - Focus (session queue)
+
+    private func applyFocus() {
+        withLockedDevice { d in
+            if let position = focusTarget {
+                guard d.isLockingFocusWithCustomLensPositionSupported else { return }
+                d.setFocusModeLocked(lensPosition: Float(position).clamped(0, 1))
+            } else if d.focusMode != .continuousAutoFocus, d.isFocusModeSupported(.continuousAutoFocus) {
+                d.focusMode = .continuousAutoFocus
+            }
+        }
+    }
+
+    /// The flash sequence meters on its own over custom exposure and locked white balance, and has been
+    /// reported to refocus over a locked lens. Applying the user's settings again returns the viewfinder
+    /// to them; for settings the device kept, it changes nothing.
+    private func restoreAfterFlash() {
+        exposureUpdates.schedule(on: queue) { self.applyExposure() }
+        whiteBalanceUpdates.schedule(on: queue) { self.applyWhiteBalance() }
+        focusUpdates.schedule(on: queue) { self.applyFocus() }
+    }
+
     // MARK: - White balance (session queue)
 
     private func applyWhiteBalance() {
@@ -286,7 +336,10 @@ final class CaptureService: @unchecked Sendable {
         defer { d.unlockForConfiguration() }
         switch whiteBalance {
         case .auto:
-            if d.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { d.whiteBalanceMode = .continuousAutoWhiteBalance }
+            // Only when it isn't on yet, so re-applying after a flash shot leaves running auto white balance alone.
+            if d.whiteBalanceMode != .continuousAutoWhiteBalance, d.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                d.whiteBalanceMode = .continuousAutoWhiteBalance
+            }
         case let .temperature(kelvin):
             // Without support only the current gains may be locked; anything else throws.
             guard d.isLockingWhiteBalanceWithCustomDeviceGainsSupported else { return }
@@ -335,7 +388,7 @@ final class CaptureService: @unchecked Sendable {
     /// device's completion handler) and the meter has seen a frame of it, so it converges quickly
     /// without hunting: errors over 1 EV are corrected in one step, smaller ones at 80%.
     private func meter() {
-        guard session.isRunning, let d = device, d.exposureMode == .custom else { return }
+        guard session.isRunning, flashCapturesInFlight.isEmpty, let d = device, d.exposureMode == .custom else { return }
         let now = DispatchTime.now()
         if let deadline = meterStepDeadline {
             // The completion can be lost when the session reconfigures; don't wait for it forever.
@@ -442,8 +495,17 @@ final class CaptureService: @unchecked Sendable {
     }
 
     /// A one-frame manual bracket when the photo needs a longer shutter than the viewfinder runs at.
+    /// Flash shots are plain captures: brackets can't fire the flash, and the camera meters flash shots
+    /// itself anyway. Auto flash is resolved here instead of by the photo output, so a shot the camera
+    /// takes without flash still gets its bracket, and the flash icon tells in advance which it will be.
     private func photoSettings(rawFormat: OSType) -> AVCapturePhotoSettings {
-        guard canBracket, let d = device else { return AVCapturePhotoSettings(rawPixelFormatType: rawFormat) }
+        guard let d = device else { return AVCapturePhotoSettings(rawPixelFormatType: rawFormat) }
+        if flashReady(d), flash.fires(inFlashScene: photoOutput.isFlashScene) {
+            let settings = AVCapturePhotoSettings(rawPixelFormatType: rawFormat)
+            settings.flashMode = .on
+            return settings
+        }
+        guard canBracket else { return AVCapturePhotoSettings(rawPixelFormatType: rawFormat) }
         let photo = photoExposure(d)
         guard photo.duration > d.exposureDuration.seconds * 1.05 else {
             return AVCapturePhotoSettings(rawPixelFormatType: rawFormat)
@@ -453,6 +515,13 @@ final class CaptureService: @unchecked Sendable {
             iso: Float(photo.iso)
         )
         return AVCapturePhotoBracketSettings(rawPixelFormatType: rawFormat, processedFormat: nil, bracketedSettings: [frame])
+    }
+
+    /// The lens has a flash and it isn't switched off while the phone cools down. With `.on` and no
+    /// flash available, the photo output would quietly shoot without it, so this is checked up front.
+    /// Availability can only be checked when the device reports a flash of its own.
+    private func flashReady(_ d: AVCaptureDevice) -> Bool {
+        photoOutput.supportedFlashModes.contains(.on) && (!d.hasFlash || d.isFlashAvailable)
     }
 
     // MARK: - Session queue
@@ -507,6 +576,17 @@ final class CaptureService: @unchecked Sendable {
                 .map { ($0, .proRAW) }
         }
         canBracket = rawFormat?.kind == .bayer && photoOutput.maxBracketedCapturePhotoCount > 0
+        // isFlashScene answers only while a flash mode is monitored. Speed priority, like the RAW captures:
+        // with still image stabilization monitored too, auto flash would wait for darker scenes.
+        if photoOutput.supportedFlashModes.contains(.auto) {
+            let monitoring = AVCapturePhotoSettings()
+            monitoring.flashMode = .auto
+            monitoring.photoQualityPrioritization = .speed
+            photoOutput.photoSettingsForSceneMonitoring = monitoring
+        } else {
+            photoOutput.photoSettingsForSceneMonitoring = nil
+        }
+        prepareCaptures(on: device)
         // A new lens starts in auto exposure (set below), so any priority-mode metering stops.
         // White balance starts in auto too; the model re-applies a locked one.
         exposure = .auto
@@ -547,8 +627,29 @@ final class CaptureService: @unchecked Sendable {
             supportsManualExposure: device.isExposureModeSupported(.custom),
             supportsManualFocus: device.isLockingFocusWithCustomLensPositionSupported,
             supportsManualWhiteBalance: device.isLockingWhiteBalanceWithCustomDeviceGainsSupported,
+            hasFlash: photoOutput.supportedFlashModes.contains(.on),
             raw: rawFormat?.kind
         )
+    }
+
+    /// The photo output is prepared only for processed photos by default and allocates RAW and bracket
+    /// buffers just in time, which slows those captures down; this allocates them now, on lens switch.
+    private func prepareCaptures(on device: AVCaptureDevice) {
+        guard let format = rawFormat else { return }
+        let single = AVCapturePhotoSettings(rawPixelFormatType: format.type)
+        single.photoQualityPrioritization = .speed
+        var prepared = [single]
+        if canBracket {
+            let f = device.activeFormat
+            let frame = AVCaptureManualExposureBracketedStillImageSettings.manualExposureSettings(
+                exposureDuration: f.maxExposureDuration,
+                iso: f.minISO
+            )
+            let bracket = AVCapturePhotoBracketSettings(rawPixelFormatType: format.type, processedFormat: nil, bracketedSettings: [frame])
+            bracket.photoQualityPrioritization = .speed
+            prepared.append(bracket)
+        }
+        photoOutput.setPreparedPhotoSettingsArray(prepared, completionHandler: nil)
     }
 
     private func withDevice(_ body: @escaping @Sendable (AVCaptureDevice) -> Void) {
@@ -647,6 +748,7 @@ private final class RawCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate 
     private let kind: RawKind
     private let rotationAngle: CGFloat
     private let location: PhotoLocation?
+    private let exposed: @Sendable () -> Void
     private let completion: @Sendable (Result<CapturedRAW, Error>) -> Void
     private var result: CapturedRAW?
     private var error: Error?
@@ -655,12 +757,18 @@ private final class RawCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate 
         kind: RawKind,
         rotationAngle: CGFloat,
         location: PhotoLocation?,
+        exposed: @escaping @Sendable () -> Void,
         completion: @escaping @Sendable (Result<CapturedRAW, Error>) -> Void
     ) {
         self.kind = kind
         self.rotationAngle = rotationAngle
         self.location = location
+        self.exposed = exposed
         self.completion = completion
+    }
+
+    func photoOutput(_ output: AVCapturePhotoOutput, didCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
+        exposed()
     }
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
@@ -822,20 +930,22 @@ enum RawStats {
 extension AVCaptureConnection {
     /// `videoRotationAngle` is iOS 17+; earlier systems take the equivalent `videoOrientation`
     /// (0° landscape right, 90° portrait, 180° landscape left, 270° portrait upside down).
+    /// Set only on change, since it also runs between the shutter press and the capture request.
     /// - Returns: the angle in effect afterwards.
     @discardableResult
     func applyRotation(_ angle: CGFloat) -> CGFloat {
         if #available(iOS 17, *) {
-            if isVideoRotationAngleSupported(angle) { videoRotationAngle = angle }
+            if videoRotationAngle != angle, isVideoRotationAngleSupported(angle) { videoRotationAngle = angle }
             return videoRotationAngle
         }
         guard isVideoOrientationSupported else { return 0 }
-        videoOrientation = switch Int(angle.rounded()) {
+        let orientation: AVCaptureVideoOrientation = switch Int(angle.rounded()) {
         case 90: .portrait
         case 180: .landscapeLeft
         case 270: .portraitUpsideDown
         default: .landscapeRight
         }
+        if videoOrientation != orientation { videoOrientation = orientation }
         return angle
     }
 }
