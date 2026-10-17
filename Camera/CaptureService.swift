@@ -875,9 +875,11 @@ enum CaptureFiles {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// Leftovers of a session that ended mid-queue.
+    /// Leftovers of a session that ended mid-queue, and DNG copies a test build kept in Documents.
     static func purge() {
         try? FileManager.default.removeItem(at: directory)
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.removeItem(at: documents.appendingPathComponent("DNG", isDirectory: true))
     }
 }
 

@@ -176,9 +176,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Raw;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Takes RAW photos.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Adds where a photo was taken to its metadata when Save location is on.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Saves your shots to Photos.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Shows your latest photo on the thumbnail and in the in-app viewer.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Adds where a photo was taken to its metadata when Save location is on.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -187,6 +187,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
+				MTLLINKER_FLAGS = "-framework CoreImage";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asya.rawcamera;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -207,9 +208,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Raw;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Takes RAW photos.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Adds where a photo was taken to its metadata when Save location is on.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Saves your shots to Photos.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Shows your latest photo on the thumbnail and in the in-app viewer.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Adds where a photo was taken to its metadata when Save location is on.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -218,6 +219,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
+				MTLLINKER_FLAGS = "-framework CoreImage";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asya.rawcamera;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

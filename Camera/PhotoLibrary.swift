@@ -10,8 +10,9 @@ enum PhotoLibrary {
     /// processed file the alternate, the reverse fails with PHPhotosError 3300. If Photos rejects the
     /// pairing anyway (e.g. PNG), both files are kept as separate assets so the shot isn't lost.
     /// The DNG is copied, not moved: if Photos rejects the pair, the fallback still needs the file.
+    /// File names end with the develop style, which Photos shows in a photo's info: RAW_20261017_210512_Sensor.HEIC.
     /// - Returns: true when the pair had to be saved as two separate photos.
-    static func save(raw: URL?, developed: DevelopedImage?, location: PhotoLocation?) async throws -> Bool {
+    static func save(raw: URL?, developed: DevelopedImage?, style: String?, location: PhotoLocation?) async throws -> Bool {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else { throw AccessDenied() }
 
@@ -21,7 +22,7 @@ enum PhotoLibrary {
                 timeZone: .current,
                 calendar: .current
             )
-        )
+        ) + (style.map { "_" + $0.replacingOccurrences(of: " ", with: "-") } ?? "")
         let library = PHPhotoLibrary.shared()
 
         switch (raw, developed) {

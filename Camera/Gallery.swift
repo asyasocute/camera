@@ -73,6 +73,15 @@ final class GalleryStore: ObservableObject {
             .joined(separator: " + ")
     }
 
+    /// The develop style at the end of the app's file names, e.g. "Own engine" from RAW_20261017_210512_Own-engine.HEIC.
+    static func style(of asset: PHAsset) -> String? {
+        for resource in PHAssetResource.assetResources(for: asset) {
+            let parts = (resource.originalFilename as NSString).deletingPathExtension.split(separator: "_", maxSplits: 3)
+            if parts.count == 4, parts[0] == "RAW" { return parts[3].replacingOccurrences(of: "-", with: " ") }
+        }
+        return nil
+    }
+
     private nonisolated static func readable(_ status: PHAuthorizationStatus) -> Bool {
         status == .authorized || status == .limited
     }
@@ -112,7 +121,7 @@ struct GalleryView: View {
         guard selection < store.assets.count else { return nil }
         let asset = store.assets.object(at: selection)
         let date = asset.creationDate?.formatted(date: .abbreviated, time: .shortened)
-        return [date, GalleryStore.fileTypes(of: asset)].compactMap { $0 }.joined(separator: " · ")
+        return [date, GalleryStore.fileTypes(of: asset), GalleryStore.style(of: asset)].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

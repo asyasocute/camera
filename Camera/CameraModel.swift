@@ -108,6 +108,10 @@ final class CameraModel: ObservableObject {
         didSet { UserDefaults.standard.set(quality, forKey: Keys.quality) }
     }
 
+    @Published var style = DevelopStyle(rawValue: UserDefaults.standard.string(forKey: Keys.style) ?? "") ?? .own {
+        didSet { UserDefaults.standard.set(style.rawValue, forKey: Keys.style) }
+    }
+
     @Published var saveLocation = UserDefaults.standard.bool(forKey: Keys.saveLocation) {
         didSet {
             UserDefaults.standard.set(saveLocation, forKey: Keys.saveLocation)
@@ -132,6 +136,7 @@ final class CameraModel: ObservableObject {
         static let quality = "quality"
         static let saveLocation = "saveLocation"
         static let flash = "flash"
+        static let style = "developStyle"
     }
 
     var backLenses: [Lens] { lenses.filter { !$0.isFront } }
@@ -249,6 +254,7 @@ final class CameraModel: ObservableObject {
         let format = format
         let keepRAW = keepRAW
         let quality = quality
+        let style = style
         let location = saveLocation ? location.usableLocation : nil
         let exposed: @Sendable () -> Void = { [weak self] in
             Task { @MainActor in self?.endExposure(of: number) }
@@ -276,7 +282,8 @@ final class CameraModel: ObservableObject {
                 orientation: shot.orientation,
                 as: format,
                 quality: quality,
-                location: location
+                location: location,
+                style: style
             )
             // Cleared on failure so the thumbnail doesn't keep showing the previous shot.
             lastShot = developed.map {
@@ -293,7 +300,12 @@ final class CameraModel: ObservableObject {
             // A failed development must not lose the shot: keep the DNG regardless of the setting.
             let raw = keepRAW || developed == nil ? shot.dng : nil
             do {
-                let savedSeparately = try await PhotoLibrary.save(raw: raw, developed: developed, location: location)
+                let savedSeparately = try await PhotoLibrary.save(
+                    raw: raw,
+                    developed: developed,
+                    style: developed?.style.title,
+                    location: location
+                )
                 gallery.refresh()
                 // Success is silent, like the stock camera; only say something when the result differs from the settings.
                 if developed == nil {

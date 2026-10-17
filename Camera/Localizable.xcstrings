@@ -11,6 +11,36 @@
         }
       }
     },
+    "Apple curve" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кривая Apple"
+          }
+        }
+      }
+    },
+    "Apple's engine with the contrast of a regular iPhone photo, no noise reduction or sharpening." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проявка Apple с контрастом как у обычного фото с айфона, без шумодава и резкости."
+          }
+        }
+      }
+    },
+    "Apple's engine, flat: deep black, but noisy shadows turn blue. The app's original mode." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проявка Apple, плоская: чёрный глубокий, но шумные тени синеют. Так приложение проявляло с самого начала."
+          }
+        }
+      }
+    },
     "At 80% and below, JPEG starts smoothing grain" : {
       "localizations" : {
         "ru" : {
@@ -161,6 +191,16 @@
         }
       }
     },
+    "Linear" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Линейный"
+          }
+        }
+      }
+    },
     "Location access is off. Allow it in Settings." : {
       "localizations" : {
         "ru" : {
@@ -231,6 +271,26 @@
         }
       }
     },
+    "Own engine" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свой движок"
+          }
+        }
+      }
+    },
+    "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Linear." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Своя проявка без кода Apple: весь шум, тени не синеют, в тёмных кадрах чёрный сероватый. На фронталке работает как «Линейный»."
+          }
+        }
+      }
+    },
     "Photos" : {
       "localizations" : {
         "ru" : {
@@ -293,6 +353,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Геопозиция сохраняется"
+          }
+        }
+      }
+    },
+    "Style" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стиль"
           }
         }
       }

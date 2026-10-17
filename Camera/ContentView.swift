@@ -337,6 +337,21 @@ private struct OutputSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Style")
+                    Spacer()
+                    Picker("Style", selection: $model.style) {
+                        ForEach(DevelopStyle.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                }
+                Text(model.style.hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Picker("Format", selection: $model.format) {
                 ForEach(DevelopedFormat.allCases) { Text($0.title).tag($0) }
             }
@@ -383,6 +398,16 @@ private struct OutputSettings: View {
         case .heic: "At 85% and below, HEIC starts smoothing grain"
         case .jpeg: "At 80% and below, JPEG starts smoothing grain"
         case .png: nil
+        }
+    }
+}
+
+private extension DevelopStyle {
+    var hint: LocalizedStringKey {
+        switch self {
+        case .own: "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Linear."
+        case .linear: "Apple's engine, flat: deep black, but noisy shadows turn blue. The app's original mode."
+        case .appleCurve: "Apple's engine with the contrast of a regular iPhone photo, no noise reduction or sharpening."
         }
     }
 }
