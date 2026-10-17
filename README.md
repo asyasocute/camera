@@ -4,9 +4,10 @@ iPhone camera app that shoots a single RAW frame and develops it without noise r
 
 ## Features
 
-- Bayer RAW capture, one frame, no multi-frame fusion; ProRAW where Bayer RAW isn't available (front camera)
+- Bayer RAW capture, one frame, no multi-frame fusion; ProRAW where Bayer RAW isn't available
 - Saves HEIC, JPEG or PNG, optionally paired with the DNG; adjustable compression quality
-- Develop styles: own RAW engine (DNG levels and color matrices, plain demosaic, black at the noise floor so noisy shadows don't turn blue, half the lens's vignetting correction), Apple's engine linear, Apple's tone curve; the style is in each photo's file name
+- Develop styles: own RAW engine (DNG levels and color matrices, plain demosaic, deep black whose noise floor stays neutral instead of blue, half the lens's vignetting correction), Apple's engine linear, Apple's tone curve; the style is in each photo's file name
+- 2× digital zoom on the main camera where no lens covers it: a centered crop of the raw frame, recorded as the DNG's default crop
 - Manual ISO, shutter, focus and white balance; shutter and ISO priority; exposure compensation
 - Auto exposure limited to 1/24 s; longer manual shutters apply to the photo while the viewfinder stays at a short shutter
 - Flash: off, auto, on; the camera sets exposure and white balance for flash shots

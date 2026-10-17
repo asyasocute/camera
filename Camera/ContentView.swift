@@ -406,7 +406,7 @@ private struct OutputSettings: View {
 private extension DevelopStyle {
     var hint: LocalizedStringKey {
         switch self {
-        case .own: "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Apple curve."
+        case .own: "Own engine, no Apple code: unsmoothed noise, deep black, noisy shadows don't turn blue. Without Bayer RAW it develops as Apple curve."
         case .linear: "Apple's engine, flat: deep black, but noisy shadows turn blue. The app's original mode."
         case .appleCurve: "Apple's engine with the contrast of a regular iPhone photo, no noise reduction or sharpening."
         }

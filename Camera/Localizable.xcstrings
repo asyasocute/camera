@@ -281,12 +281,12 @@
         }
       }
     },
-    "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Apple curve." : {
+    "Own engine, no Apple code: unsmoothed noise, deep black, noisy shadows don't turn blue. Without Bayer RAW it develops as Apple curve." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Своя проявка без кода Apple: весь шум, тени не синеют, в тёмных кадрах чёрный сероватый. На фронталке работает как «Кривая Apple»."
+            "value" : "Своя проявка без кода Apple: шум без сглаживания, чёрный глубокий, шумные тени не синеют. Без Bayer RAW проявляет как «Кривая Apple»."
           }
         }
       }

@@ -20,13 +20,11 @@ namespace coreimage {
     return float4((v - black[p]) * scale[p], 0, 0, 1);
 }
 
-/// Malvar-He-Cutler demosaic (linear 5×5), highlights clipped to white at `clip`, the lens's radial
-/// vignetting gain raised to `strength` (0 none, 1 the DNG's full correction), a neutral lift, then the
-/// color matrix to linear sRGB. `cfa` holds the color (0 R, 1 G, 2 B) of each 2×2 position; `optical` is
-/// in raw pixels from the top left and `invRadius` is one over the distance to the farthest corner.
+/// Malvar-He-Cutler demosaic (linear 5×5), highlights clipped to white at `clip`, then the color matrix to
+/// linear sRGB. Black is left unclipped for `rawBlack`. `cfa` holds the color (0 R, 1 G, 2 B) of each 2×2
+/// position.
 [[stitchable]] float4 rawDemosaic(sampler m, float4 cfa, float height, float3 row0, float3 row1, float3 row2,
-                                  float lift, float clip, float4 k, float k4, float2 optical, float invRadius,
-                                  float strength, destination dest) {
+                                  float clip, destination dest) {
     float2 c = dest.coord();
     int p = cfaPosition(c, height);
     int color = int(cfa[p]);
@@ -52,14 +50,26 @@ namespace coreimage {
     // Any channel at saturation means the color is unknown: clipping all at the first channel's
     // saturation keeps such highlights white instead of tinted.
     rgb = min(rgb, clip);
+    return float4(dot(row0, rgb), dot(row1, rgb), dot(row2, rgb), 1);
+}
+
+/// Black: values below zero can't be shown, and clipping them alone lifts each channel's mean by an amount
+/// that grows with its noise, which tints dark areas toward the noisiest channel. `shift0`…`shift3` (one per
+/// 2×2 position, from `OwnEngine`) move each channel before the clip so that clipped noise averages the
+/// same in all three. Then the lens's vignetting gain raised to `strength`, which scales signal and noise
+/// alike, so the shifts scale with it.
+[[stitchable]] float4 rawBlack(sampler image, float3 shift0, float3 shift1, float3 shift2, float3 shift3, float height,
+                               float4 k, float k4, float2 optical, float invRadius, float strength, destination dest) {
+    float2 c = dest.coord();
+    int p = cfaPosition(c, height);
+    float3 shift = p == 0 ? shift0 : p == 1 ? shift1 : p == 2 ? shift2 : shift3;
+    float3 y = max(image.sample(image.transform(c)).rgb - shift, 0.0);
     if (strength > 0) {
         float2 d = (float2(c.x, height - c.y) - optical) * invRadius;
         float r2 = dot(d, d);
-        float gain = 1 + r2 * (k.x + r2 * (k.y + r2 * (k.z + r2 * (k.w + r2 * k4))));
-        rgb *= pow(gain, strength);
+        y *= pow(1 + r2 * (k.x + r2 * (k.y + r2 * (k.z + r2 * (k.w + r2 * k4)))), strength);
     }
-    rgb += lift;
-    return float4(dot(row0, rgb), dot(row1, rgb), dot(row2, rgb), 1);
+    return float4(y, 1);
 }
 
 }
