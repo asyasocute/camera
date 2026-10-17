@@ -110,7 +110,8 @@ struct ContentView: View {
                 showMarker(at: viewPoint)
             },
             onHardwareShutter: model.capture,
-            hardwareShutterEnabled: !isCovered
+            hardwareShutterEnabled: !isCovered,
+            zoom: model.digitalZoom
         )
         .overlay {
             if let focusMarker {
@@ -144,8 +145,8 @@ struct ContentView: View {
         .animation(.default, value: model.message)
         .overlay(alignment: .bottom) {
             VStack(spacing: 10) {
-                // Only lenses this phone actually has; a single back camera needs no picker.
-                if model.state?.lens.isFront != true, model.backLenses.count > 1 {
+                // The lenses this phone has, plus 2× from the main camera where no lens covers it.
+                if model.state?.lens.isFront != true, model.zoomStops.count > 1 {
                     zoomPicker
                 }
                 if panelOverlaid {
@@ -170,10 +171,10 @@ struct ContentView: View {
     /// Stock-camera style: the active lens is larger and shows "×".
     private var zoomPicker: some View {
         HStack(spacing: 4) {
-            ForEach(model.backLenses) { lens in
-                let selected = lens == model.state?.lens
-                Button { model.select(lens) } label: {
-                    Text(selected ? lens.label : lens.shortLabel)
+            ForEach(model.zoomStops) { stop in
+                let selected = stop == model.zoomStop
+                Button { model.select(stop) } label: {
+                    Text(selected ? stop.label : stop.shortLabel)
                         .font(.system(size: selected ? 13 : 11, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(selected ? .yellow : .white)
@@ -187,7 +188,7 @@ struct ContentView: View {
         }
         .padding(3)
         .background(.black.opacity(0.25), in: Capsule())
-        .animation(.easeOut(duration: 0.2), value: model.state?.lens)
+        .animation(.easeOut(duration: 0.2), value: model.zoomStop)
     }
 
     // MARK: - Shutter row
@@ -405,7 +406,7 @@ private struct OutputSettings: View {
 private extension DevelopStyle {
     var hint: LocalizedStringKey {
         switch self {
-        case .own: "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Linear."
+        case .own: "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Apple curve."
         case .linear: "Apple's engine, flat: deep black, but noisy shadows turn blue. The app's original mode."
         case .appleCurve: "Apple's engine with the contrast of a regular iPhone photo, no noise reduction or sharpening."
         }

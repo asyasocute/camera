@@ -89,13 +89,16 @@ actor Darkroom {
         as format: DevelopedFormat,
         quality: Double,
         location: PhotoLocation?,
-        style: DevelopStyle
+        style: DevelopStyle,
+        zoom: Double
     ) throws -> DevelopedImage {
+        // Digital zoom is a crop of the full raw frame; a file without crop tags develops uncropped.
+        let zoom = zoom > 1 && (try? DNG.cropToCenter(dng, zoom: zoom)) != nil ? zoom : 1
         let (output, properties, used) = try render(dng, style: style)
         // Rotate explicitly instead of trusting the DNG's orientation tag.
         let image = output
             .oriented(orientation)
-            .settingProperties(Self.metadata(properties, location: location, style: used))
+            .settingProperties(Self.metadata(properties, location: location, style: used, zoom: zoom))
 
         let options = [
             CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality,
@@ -111,8 +114,10 @@ actor Darkroom {
         return DevelopedImage(data: data, format: format, style: used, thumbnail: Self.thumbnail(of: data))
     }
 
-    /// The developed image in the sensor's orientation, its metadata and the style used. Styles that read
-    /// the raw data themselves fall back to `.linear` for files they can't read, such as front-camera ProRAW.
+    /// The developed image in the sensor's orientation, its metadata and the style used. The own engine
+    /// reads Bayer data only; front-camera ProRAW goes to `.appleCurve` instead. ProRAW arrives with its
+    /// noise already clipped at zero, and in the dark its baseline exposure turns that into a gray floor,
+    /// which a linear rendering keeps and Apple's tone curve takes down to black.
     private func render(_ url: URL, style: DevelopStyle) throws -> (CIImage, [String: Any], DevelopStyle) {
         switch style {
         case .linear:
@@ -126,7 +131,7 @@ actor Darkroom {
                   let engine = ownEngine ?? (try? OwnEngine(library: Self.kernelLibrary())),
                   let image = engine.develop(dng, pixels: pixels, levels: RawLevels(dng, pixels: pixels), vignetteStrength: Self.vignetteStrength),
                   let source = CGImageSourceCreateWithData(dng.data as CFData, nil)
-            else { return try render(url, style: .linear) }
+            else { return try render(url, style: .appleCurve) }
             ownEngine = engine
             return (image, CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] ?? [:], style)
         }
@@ -179,7 +184,7 @@ actor Darkroom {
 
     /// Pixels are already rotated, so the written orientation tag must be "up". The style goes into the
     /// TIFF Software tag, where editors show what produced the file.
-    private static func metadata(_ properties: [String: Any], location: PhotoLocation?, style: DevelopStyle) -> [String: Any] {
+    private static func metadata(_ properties: [String: Any], location: PhotoLocation?, style: DevelopStyle, zoom: Double) -> [String: Any] {
         var props = properties
         if let location { props[kCGImagePropertyGPSDictionary as String] = location.gpsMetadata }
         props[kCGImagePropertyOrientation as String] = CGImagePropertyOrientation.up.rawValue
@@ -187,6 +192,14 @@ actor Darkroom {
         tiff[kCGImagePropertyTIFFOrientation as String] = CGImagePropertyOrientation.up.rawValue
         tiff[kCGImagePropertyTIFFSoftware as String] = "Raw (\(style.title))"
         props[kCGImagePropertyTIFFDictionary as String] = tiff
+        if zoom > 1 {
+            var exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any] ?? [:]
+            exif[kCGImagePropertyExifDigitalZoomRatio as String] = zoom
+            if let focal = exif[kCGImagePropertyExifFocalLenIn35mmFilm as String] as? Double {
+                exif[kCGImagePropertyExifFocalLenIn35mmFilm as String] = Int((focal * zoom).rounded())
+            }
+            props[kCGImagePropertyExifDictionary as String] = exif
+        }
         return props
     }
 }

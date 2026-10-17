@@ -9,6 +9,17 @@ final class LiveReadout: ObservableObject {
     @Published fileprivate(set) var value = Readout.zero
 }
 
+/// A zoom button: a back lens, or the main camera with a digital zoom (a crop of its raw frame).
+struct ZoomStop: Identifiable, Hashable {
+    let lens: Lens
+    let digitalZoom: Double
+
+    var id: String { "\(lens.id)@\(digitalZoom)" }
+    var zoom: Double { lens.zoom * digitalZoom }
+    var shortLabel: String { zoom.formatted(.number.precision(.fractionLength(0...1))) }
+    var label: String { shortLabel + "×" }
+}
+
 @MainActor
 final class CameraModel: ObservableObject {
     enum Phase: Equatable {
@@ -26,6 +37,8 @@ final class CameraModel: ObservableObject {
     @Published private(set) var phase: Phase = .starting
     @Published private(set) var lenses: [Lens] = []
     @Published private(set) var state: LensState?
+    /// Crop factor of the main camera's frame; 1 on other lenses.
+    @Published private(set) var digitalZoom = 1.0
     let live = LiveReadout()
     let location = LocationProvider()
     private var readout: Readout { live.value }
@@ -140,6 +153,19 @@ final class CameraModel: ObservableObject {
     }
 
     var backLenses: [Lens] { lenses.filter { !$0.isFront } }
+
+    /// Each back lens, plus 2× cropped from the main camera when no lens sits near 2×.
+    var zoomStops: [ZoomStop] {
+        var stops = backLenses.map { ZoomStop(lens: $0, digitalZoom: 1) }
+        if let main = backLenses.first(where: \.isMain), !backLenses.contains(where: { (1.5...2.5).contains($0.zoom) }) {
+            stops.append(ZoomStop(lens: main, digitalZoom: 2))
+        }
+        return stops.sorted { $0.zoom < $1.zoom }
+    }
+
+    var zoomStop: ZoomStop? {
+        state.map { ZoomStop(lens: $0.lens, digitalZoom: digitalZoom) }
+    }
     var frontLens: Lens? { lenses.first(where: \.isFront) }
 
     private var messageTask: Task<Void, Never>?
@@ -199,13 +225,22 @@ final class CameraModel: ObservableObject {
         }
     }
 
-    func select(_ lens: Lens) {
-        guard lens != state?.lens else { return }
+    func select(_ stop: ZoomStop) {
+        select(stop.lens, digitalZoom: stop.digitalZoom)
+    }
+
+    func select(_ lens: Lens, digitalZoom: Double = 1) {
+        guard lens != state?.lens || digitalZoom != self.digitalZoom else { return }
         UISelectionFeedbackGenerator().selectionChanged()
+        guard lens != state?.lens else {
+            self.digitalZoom = digitalZoom
+            return
+        }
         if let current = state?.lens, !current.isFront { lastBackLens = current }
         Task {
             do {
                 state = try await service.select(lensID: lens.id)
+                self.digitalZoom = digitalZoom
                 manualISO = false
                 manualShutter = false
                 manualFocus = false
@@ -255,6 +290,7 @@ final class CameraModel: ObservableObject {
         let keepRAW = keepRAW
         let quality = quality
         let style = style
+        let zoom = digitalZoom
         let location = saveLocation ? location.usableLocation : nil
         let exposed: @Sendable () -> Void = { [weak self] in
             Task { @MainActor in self?.endExposure(of: number) }
@@ -283,7 +319,8 @@ final class CameraModel: ObservableObject {
                 as: format,
                 quality: quality,
                 location: location,
-                style: style
+                style: style,
+                zoom: zoom
             )
             // Cleared on failure so the thumbnail doesn't keep showing the previous shot.
             lastShot = developed.map {

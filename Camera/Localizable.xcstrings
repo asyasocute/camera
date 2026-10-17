@@ -281,12 +281,12 @@
         }
       }
     },
-    "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Linear." : {
+    "Own engine, no Apple code: all the noise, shadows don't turn blue, black is grayish in dark shots. On the front camera it develops as Apple curve." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Своя проявка без кода Apple: весь шум, тени не синеют, в тёмных кадрах чёрный сероватый. На фронталке работает как «Линейный»."
+            "value" : "Своя проявка без кода Apple: весь шум, тени не синеют, в тёмных кадрах чёрный сероватый. На фронталке работает как «Кривая Apple»."
           }
         }
       }

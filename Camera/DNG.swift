@@ -178,6 +178,46 @@ struct DNG: Sendable {
         return active
     }
 
+    /// Narrows the file's default crop to its central 1/`zoom`. This is how digital zoom reaches both the
+    /// DNG and the developed photo: the raw data stays complete and viewers show the zoomed framing. The
+    /// crop tags are rewritten in place (same type and count), so nothing else in the file moves.
+    static func cropToCenter(_ url: URL, zoom: Double) throws {
+        var data = try Data(contentsOf: url)
+        let tiff = try TIFFFile(data)
+        guard let raw = try tiff.findIFD(where: { ifd in
+            tiff.ints(ifd[262]).first == 32803 && (tiff.ints(ifd[254]).first ?? 0) & 1 == 0
+        }), let originTag = raw[50719], let sizeTag = raw[50720] else { throw Failure.unsupported("default crop") }
+        let origin = tiff.doubles(originTag), size = tiff.doubles(sizeTag)
+        guard origin.count == 2, size.count == 2, zoom >= 1 else { throw Failure.unsupported("default crop") }
+
+        // Even sizes and offsets keep the crop on whole 2×2 CFA tiles.
+        let width = (size[0] / zoom / 2).rounded(.down) * 2, height = (size[1] / zoom / 2).rounded(.down) * 2
+        let x = origin[0] + ((size[0] - width) / 4).rounded(.down) * 2
+        let y = origin[1] + ((size[1] - height) / 4).rounded(.down) * 2
+
+        func write(_ values: [Double], into entry: TIFFFile.Entry) throws {
+            var bytes: [UInt8] = []
+            func append(_ v: UInt32, _ count: Int) {
+                let all = [UInt8(v >> 24), UInt8((v >> 16) & 0xFF), UInt8((v >> 8) & 0xFF), UInt8(v & 0xFF)]
+                let field = Array(all.suffix(count))
+                bytes += tiff.littleEndian ? field.reversed() : field
+            }
+            for value in values {
+                switch entry.type {
+                case 3: append(UInt32(value), 2)
+                case 4: append(UInt32(value), 4)
+                case 5: append(UInt32(value), 4); append(1, 4)
+                default: throw Failure.unsupported("default crop type")
+                }
+            }
+            let start = data.startIndex + entry.valueOffset
+            data.replaceSubrange(start..<(start + bytes.count), with: bytes)
+        }
+        try write([x, y], into: originTag)
+        try write([width, height], into: sizeTag)
+        try data.write(to: url, options: .atomic)
+    }
+
     /// FixVignetteRadial (opcode 3) from an opcode list. Big-endian: count, then per opcode id, version,
     /// flags, parameter size and parameters; for this opcode k0…k4, cx, cy as doubles.
     private static func vignette(in list: Data) -> Vignette? {

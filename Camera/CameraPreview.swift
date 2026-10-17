@@ -11,6 +11,8 @@ struct CameraPreview: UIViewRepresentable {
     var onHardwareShutter: () -> Void
     /// Off while something covers the preview, which gives the buttons back their system behavior.
     var hardwareShutterEnabled = true
+    /// Digital zoom shows the frame's center enlarged. The device itself stays at 1×: Bayer RAW requires it.
+    var zoom: CGFloat = 1
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -25,6 +27,7 @@ struct CameraPreview: UIViewRepresentable {
         view.onHardwareShutter = onHardwareShutter
         view.setHardwareShutterEnabled(hardwareShutterEnabled)
         view.applyPortraitRotation(for: lensID)
+        view.setZoom(zoom)
     }
 }
 
@@ -65,8 +68,17 @@ final class PreviewView: UIView {
         rotatedLensID = lensID
     }
 
+    func setZoom(_ zoom: CGFloat) {
+        guard transform.a != zoom else { return }
+        UIView.animate(withDuration: 0.2) { self.transform = CGAffineTransform(scaleX: zoom, y: zoom) }
+    }
+
+    /// The point is in the view's own coordinates, which the zoom scales about the center; the second
+    /// argument is where the tap appears in the unscaled frame.
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         let point = gesture.location(in: self)
-        onTap?(previewLayer.captureDevicePointConverted(fromLayerPoint: point), point)
+        let zoom = transform.a, mid = CGPoint(x: bounds.midX, y: bounds.midY)
+        let shown = CGPoint(x: mid.x + (point.x - mid.x) * zoom, y: mid.y + (point.y - mid.y) * zoom)
+        onTap?(previewLayer.captureDevicePointConverted(fromLayerPoint: point), shown)
     }
 }
